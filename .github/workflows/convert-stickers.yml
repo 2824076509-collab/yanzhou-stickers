@@ -1,0 +1,63 @@
+name: Convert sticker SVGs to JPG
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/convert-stickers.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install converters
+        run: pip install cairosvg pillow
+
+      - name: Convert SVG stickers to JPG and update manifest
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import io, json
+          import cairosvg
+          from PIL import Image
+
+          root = Path("stickers")
+          for svg in sorted(root.glob("*.svg")):
+              png = cairosvg.svg2png(url=str(svg), scale=1)
+              im = Image.open(io.BytesIO(png)).convert("RGBA")
+              bg = Image.new("RGB", im.size, "white")
+              bg.paste(im, mask=im.getchannel("A"))
+              jpg = svg.with_suffix(".jpg")
+              bg.save(jpg, "JPEG", quality=94, optimize=True)
+
+          manifest = Path("stickers.json")
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          for s in data.get("stickers", []):
+              if s.get("filename", "").endswith(".svg"):
+                  s["filename"] = s["filename"][:-4] + ".jpg"
+              if s.get("path", "").endswith(".svg"):
+                  s["path"] = s["path"][:-4] + ".jpg"
+          manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Commit JPG versions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stickers/*.jpg stickers.json
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Convert sticker library to JPG"
+            git push
+          fi
