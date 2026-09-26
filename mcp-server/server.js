@@ -8,10 +8,12 @@ const REPO = "yanzhou-stickers";
 const BRANCH = "main";
 const MANIFEST_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/stickers.json`;
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
+const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/`;
+const STICKER_WIDGET_URI = "ui://widget/yanzhou-sticker-v1.html";
 
 async function loadManifest() {
   const response = await fetch(MANIFEST_URL, {
-    headers: { "user-agent": "yanzhou-stickers-mcp/0.1" },
+    headers: { "user-agent": "yanzhou-stickers-mcp/0.2" },
   });
   if (!response.ok) throw new Error(`Could not load sticker manifest: HTTP ${response.status}`);
   const data = await response.json();
@@ -32,13 +34,97 @@ function findSticker(stickers, query) {
   });
 }
 
+function encodePath(path) {
+  return String(path).split("/").map(encodeURIComponent).join("/");
+}
+
 function createStickerServer() {
   const server = new McpServer(
-    { name: "yanzhou-stickers", version: "0.1.1" },
+    { name: "yanzhou-stickers", version: "0.2.0" },
     {
       instructions:
-        "This server exposes Yanzhou's personal sticker library. Use list_stickers to inspect available stickers and show_sticker to return the selected JPG image itself. Choose by conversational meaning and tags; do not invent filenames.",
+        "This server exposes Yanzhou's personal sticker library. Use list_stickers to inspect available stickers and show_sticker to display the selected sticker in ChatGPT. Choose by conversational meaning and tags; do not invent filenames.",
     },
+  );
+
+  const stickerWidgetHtml = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+      }
+      body {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-height: 1px;
+      }
+      #sticker {
+        display: block;
+        width: min(220px, 72vw);
+        height: auto;
+        max-height: 320px;
+        object-fit: contain;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="sticker" hidden alt="表情包" />
+    <script>
+      const sticker = document.getElementById("sticker");
+
+      function render(output) {
+        if (!output || !output.imageUrl) return;
+        sticker.src = output.imageUrl;
+        sticker.alt = output.filename || "表情包";
+        sticker.hidden = false;
+      }
+
+      if (window.openai && window.openai.toolOutput) {
+        render(window.openai.toolOutput);
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent) return;
+        const message = event.data;
+        if (!message || message.jsonrpc !== "2.0") return;
+        if (message.method === "ui/notifications/tool-result") {
+          render(message.params && message.params.structuredContent);
+        }
+      }, { passive: true });
+    </script>
+  </body>
+</html>
+  `.trim();
+
+  server.registerResource(
+    "yanzhou-sticker-widget",
+    STICKER_WIDGET_URI,
+    {},
+    async () => ({
+      contents: [
+        {
+          uri: STICKER_WIDGET_URI,
+          mimeType: "text/html;profile=mcp-app",
+          text: stickerWidgetHtml,
+          _meta: {
+            ui: {
+              prefersBorder: false,
+              csp: {
+                resourceDomains: ["https://cdn.jsdelivr.net"],
+              },
+            },
+          },
+        },
+      ],
+    }),
   );
 
   server.registerTool(
@@ -83,9 +169,21 @@ function createStickerServer() {
     {
       title: "Show a Yanzhou sticker",
       description:
-        "Return one sticker as an actual JPEG image in the tool result. Pass an exact filename from list_stickers, or the same name without the .jpg extension.",
+        "Display one sticker visibly in ChatGPT. Pass an exact filename from list_stickers, or the same name without the .jpg extension.",
       inputSchema: {
         filename: z.string().min(1).describe("Sticker filename, e.g. 蹭蹭.jpg"),
+      },
+      outputSchema: {
+        filename: z.string(),
+        meaning: z.string(),
+        tags: z.array(z.string()),
+        imageUrl: z.string(),
+      },
+      _meta: {
+        ui: { resourceUri: STICKER_WIDGET_URI },
+        "openai/outputTemplate": STICKER_WIDGET_URI,
+        "openai/toolInvocation/invoking": "正在拿表情包…",
+        "openai/toolInvocation/invoked": "表情包来啦",
       },
       annotations: {
         readOnlyHint: true,
@@ -116,9 +214,11 @@ function createStickerServer() {
         };
       }
 
-      const imageUrl = RAW_BASE + sticker.path.split("/").map(encodeURIComponent).join("/");
-      const imageResponse = await fetch(imageUrl, {
-        headers: { "user-agent": "yanzhou-stickers-mcp/0.1" },
+      const encodedPath = encodePath(sticker.path);
+      const imageUrl = CDN_BASE + encodedPath;
+      const rawImageUrl = RAW_BASE + encodedPath;
+      const imageResponse = await fetch(rawImageUrl, {
+        headers: { "user-agent": "yanzhou-stickers-mcp/0.2" },
       });
       if (!imageResponse.ok) throw new Error(`Could not load sticker image: HTTP ${imageResponse.status}`);
 
@@ -128,6 +228,12 @@ function createStickerServer() {
       const meaning = sticker.meaning ?? "";
 
       return {
+        structuredContent: {
+          filename: sticker.filename,
+          meaning,
+          tags,
+          imageUrl,
+        },
         content: [
           {
             type: "image",
