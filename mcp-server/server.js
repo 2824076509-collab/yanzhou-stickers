@@ -40,7 +40,7 @@ function encodePath(path) {
 
 function createStickerServer() {
   const server = new McpServer(
-    { name: "yanzhou-stickers", version: "0.2.0" },
+    { name: "yanzhou-stickers", version: "0.2.1" },
     {
       instructions:
         "This server exposes Yanzhou's personal sticker library. Use list_stickers to inspect available stickers and show_sticker to display the selected sticker in ChatGPT. Choose by conversational meaning and tags; do not invent filenames.",
@@ -50,57 +50,39 @@ function createStickerServer() {
   const stickerWidgetHtml = `
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: transparent;
-      }
-      body {
-        display: flex;
-        align-items: flex-start;
-        justify-content: flex-start;
-        min-height: 1px;
-      }
-      #sticker {
-        display: block;
-        width: min(220px, 72vw);
-        height: auto;
-        max-height: 320px;
-        object-fit: contain;
-        border-radius: 12px;
-      }
-    </style>
-  </head>
-  <body>
-    <img id="sticker" hidden alt="表情包" />
-    <script>
-      const sticker = document.getElementById("sticker");
-
-      function render(output) {
-        if (!output || !output.imageUrl) return;
-        sticker.src = output.imageUrl;
-        sticker.alt = output.filename || "表情包";
-        sticker.hidden = false;
-      }
-
-      if (window.openai && window.openai.toolOutput) {
-        render(window.openai.toolOutput);
-      }
-
-      window.addEventListener("message", (event) => {
-        if (event.source !== window.parent) return;
-        const message = event.data;
-        if (!message || message.jsonrpc !== "2.0") return;
-        if (message.method === "ui/notifications/tool-result") {
-          render(message.params && message.params.structuredContent);
-        }
-      }, { passive: true });
-    </script>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;padding:8px;background:transparent;font-family:system-ui,-apple-system,sans-serif}
+    .card{overflow:hidden;border-radius:16px;background:#fff;border:1px solid rgba(0,0,0,.08)}
+    img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#fff}
+    .caption{padding:9px 12px;font-size:14px;color:#555;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="card"><img id="sticker" alt="表情包" /><div id="caption" class="caption"></div></div>
+  <script>
+    const image = document.getElementById("sticker");
+    const caption = document.getElementById("caption");
+    function render(value) {
+      const data = value && value.structuredContent ? value.structuredContent : value;
+      if (!data || !data.url) return;
+      image.src = data.url;
+      image.alt = data.alt || "表情包";
+      caption.textContent = data.caption || data.alt || "";
+    }
+    if (window.openai && window.openai.toolOutput) render(window.openai.toolOutput);
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+      if (message.method === "ui/notifications/tool-result") render(message.params);
+      if (message.method === "openai:set_globals") render(message.params && message.params.globals && message.params.globals.toolOutput);
+    }, { passive: true });
+  </script>
+</body>
 </html>
   `.trim();
 
@@ -116,12 +98,14 @@ function createStickerServer() {
           text: stickerWidgetHtml,
           _meta: {
             ui: {
-              prefersBorder: false,
+              prefersBorder: true,
               csp: {
+                connectDomains: ["https://cdn.jsdelivr.net"],
                 resourceDomains: ["https://cdn.jsdelivr.net"],
               },
             },
           },
+          "openai/widgetDescription": "显示选中的表情包图片",
         },
       ],
     }),
@@ -174,16 +158,15 @@ function createStickerServer() {
         filename: z.string().min(1).describe("Sticker filename, e.g. 蹭蹭.jpg"),
       },
       outputSchema: {
-        filename: z.string(),
-        meaning: z.string(),
-        tags: z.array(z.string()),
-        imageUrl: z.string(),
+        url: z.string(),
+        alt: z.string(),
+        caption: z.string(),
       },
       _meta: {
         ui: { resourceUri: STICKER_WIDGET_URI },
         "openai/outputTemplate": STICKER_WIDGET_URI,
-        "openai/toolInvocation/invoking": "正在拿表情包…",
-        "openai/toolInvocation/invoked": "表情包来啦",
+        "openai/toolInvocation/invoking": "正在发送表情包…",
+        "openai/toolInvocation/invoked": "表情包已发送",
       },
       annotations: {
         readOnlyHint: true,
@@ -229,10 +212,9 @@ function createStickerServer() {
 
       return {
         structuredContent: {
-          filename: sticker.filename,
-          meaning,
-          tags,
-          imageUrl,
+          url: imageUrl,
+          alt: sticker.filename,
+          caption: meaning || sticker.filename,
         },
         content: [
           {
