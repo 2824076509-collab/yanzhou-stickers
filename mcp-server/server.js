@@ -34,7 +34,7 @@ function findSticker(stickers, query) {
 
 function createStickerServer() {
   const server = new McpServer(
-    { name: "yanzhou-stickers", version: "0.1.0" },
+    { name: "yanzhou-stickers", version: "0.1.1" },
     {
       instructions:
         "This server exposes Yanzhou's personal sticker library. Use list_stickers to inspect available stickers and show_sticker to return the selected JPG image itself. Choose by conversational meaning and tags; do not invent filenames.",
@@ -87,11 +87,6 @@ function createStickerServer() {
       inputSchema: {
         filename: z.string().min(1).describe("Sticker filename, e.g. 蹭蹭.jpg"),
       },
-      outputSchema: {
-        filename: z.string(),
-        meaning: z.string(),
-        tags: z.array(z.string()),
-      },
       annotations: {
         readOnlyHint: true,
         openWorldHint: true,
@@ -133,11 +128,6 @@ function createStickerServer() {
       const meaning = sticker.meaning ?? "";
 
       return {
-        structuredContent: {
-          filename: sticker.filename,
-          meaning,
-          tags,
-        },
         content: [
           {
             type: "image",
