@@ -106,7 +106,7 @@ const stickerSummarySchema = z.object({
 function createStickerServer() {
   const server = new McpServer({
     name: "yanyan-stickers",
-    version: "0.2.0",
+    version: "0.2.2",
     instructions:
       "Yanyan's personal sticker library. In light casual conversation, search semantically first, choose one best sticker yourself, then show it. Do not ask the user to choose unless they explicitly want to browse. Prefer no more than one sticker per reply and skip spontaneous stickers in serious or high-stakes contexts.",
   });
@@ -190,7 +190,7 @@ function createStickerServer() {
     {
       title: "Show Yanyan sticker",
       description:
-        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. This renders the sticker directly in ChatGPT using MCP Apps UI.",
+        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. Returns the real image as native MCP image content, with MCP Apps UI as an optional richer renderer.",
       inputSchema: {
         filename: z.string().min(1).describe("Exact filename returned by search_stickers or list_stickers."),
       },
@@ -236,7 +236,13 @@ function createStickerServer() {
 
       return {
         structuredContent: { sticker: summary },
-        content: [],
+        content: [
+          {
+            type: "image",
+            data: base64,
+            mimeType,
+          },
+        ],
         _meta: {
           sticker: {
             filename: sticker.filename,
@@ -262,7 +268,7 @@ const httpServer = createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/") {
     res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Yanyan Stickers MCP server v0.2.0");
+    res.end("Yanyan Stickers MCP server v0.2.2");
     return;
   }
 
