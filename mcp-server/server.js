@@ -141,6 +141,7 @@ function createStickerServer() {
         query: z.string(),
         stickers: z.array(stickerSummarySchema.extend({ score: z.number() })),
       },
+      _meta: {},
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async ({ query, limit }) => {
@@ -169,6 +170,7 @@ function createStickerServer() {
         "List the sticker catalog. Prefer search_stickers for normal conversation; use this when semantic search is insufficient or the user explicitly wants to browse.",
       inputSchema: {},
       outputSchema: { stickers: z.array(stickerSummarySchema) },
+      _meta: {},
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async () => {
