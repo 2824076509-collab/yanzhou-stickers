@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: transparent; }
+    body {
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+    .wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: min(230px, 72vw);
+      min-height: 120px;
+      padding: 2px 0;
+      background: transparent;
+    }
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 230px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+    }
+    .error {
+      display: none;
+      font-size: 13px;
+      opacity: .65;
+      padding: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img id="sticker" alt="表情包" hidden />
+    <div id="error" class="error">表情包暂时没有加载出来</div>
+  </div>
+
+  <script>
+    const img = document.getElementById("sticker");
+    const error = document.getElementById("error");
+
+    function findStickerMeta(resultEnvelope) {
+      return resultEnvelope?._meta?.sticker || null;
+    }
+
+    function renderSticker(meta) {
+      if (!meta?.base64 || !meta?.mimeType) return false;
+      img.src = `data:${meta.mimeType};base64,${meta.base64}`;
+      img.alt = meta.alt || meta.filename || "表情包";
+      img.hidden = false;
+      error.style.display = "none";
+      return true;
+    }
+
+    function renderFromOpenAI() {
+      const envelope = window.openai?.toolResponseMetadata?.mcp_tool_result;
+      return renderSticker(findStickerMeta(envelope));
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+      if (message.method !== "ui/notifications/tool-result") return;
+
+      const params = message.params || {};
+      const envelope = params.result || params;
+      if (!renderSticker(findStickerMeta(envelope))) {
+        renderFromOpenAI();
+      }
+    }, { passive: true });
+
+    if (!renderFromOpenAI()) {
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        if (renderFromOpenAI() || tries >= 20) {
+          clearInterval(timer);
+          if (img.hidden) error.style.display = "block";
+        }
+      }, 100);
+    }
+  </script>
+</body>
+</html>
