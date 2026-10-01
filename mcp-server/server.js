@@ -1,88 +1,90 @@
 import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
+import { resolve, dirname, extname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  registerAppResource,
+  registerAppTool,
+  RESOURCE_MIME_TYPE,
+} from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
-const OWNER = "2824076509-collab";
-const REPO = "yanzhou-stickers";
-const BRANCH = "main";
-const MANIFEST_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/stickers.json`;
-const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
-const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/`;
-const STICKER_WIDGET_URI = "ui://widget/yanzhou-sticker-v2.html";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, "..");
+const MANIFEST_PATH = process.env.STICKER_MANIFEST_PATH || resolve(REPO_ROOT, "stickers.json");
+const WIDGET_PATH = resolve(__dirname, "public", "sticker-widget.html");
+const MCP_PATH = "/mcp";
+const WIDGET_URI = "ui://widget/yanyan-sticker-v3.html";
+const PORT = Number(process.env.PORT ?? 8787);
 
-async function loadManifest() {
-  const response = await fetch(MANIFEST_URL, {
-    headers: { "user-agent": "yanzhou-stickers-mcp/0.3" },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Could not load sticker manifest: HTTP ${response.status}`);
-  const data = await response.json();
-  if (!data || !Array.isArray(data.stickers)) throw new Error("Sticker manifest is invalid.");
+const MIME = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+
+function normalize(value = "") {
+  return String(value)
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+function loadManifest() {
+  const raw = readFileSync(MANIFEST_PATH, "utf8");
+  const data = JSON.parse(raw);
+  if (!data || !Array.isArray(data.stickers)) {
+    throw new Error("stickers.json must contain a stickers array");
+  }
   return data.stickers;
 }
 
-function normalize(value) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\.(jpe?g|png|webp|gif)$/i, "")
-    .replace(/[，。！？、；：,.!?;:()（）\[\]{}"'“”‘’]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function queryTerms(value) {
-  const normalized = normalize(value);
-  if (!normalized) return [];
-  const terms = normalized.split(" ").filter(Boolean);
-  return [...new Set(terms)];
-}
-
-function findSticker(stickers, query) {
-  const q = normalize(query);
-  return stickers.find((item) => {
-    const filename = normalize(item.filename);
-    const pathName = normalize(item.path?.split("/").pop());
-    return filename === q || pathName === q;
-  });
+function safeFilePath(relativePath) {
+  const full = resolve(REPO_ROOT, relativePath);
+  const rootPrefix = REPO_ROOT.endsWith(sep) ? REPO_ROOT : REPO_ROOT + sep;
+  if (!(full === REPO_ROOT || full.startsWith(rootPrefix))) {
+    throw new Error("Sticker path escapes repository root");
+  }
+  return full;
 }
 
 function scoreSticker(sticker, query) {
-  const normalizedQuery = normalize(query);
-  const terms = queryTerms(query);
+  const qRaw = String(query ?? "").trim();
+  if (!qRaw) return 0;
+  const q = normalize(qRaw);
+  const tokens = qRaw.split(/[\s,，、/|]+/).map(normalize).filter(Boolean);
   const filename = normalize(sticker.filename);
   const meaning = normalize(sticker.meaning);
   const tags = Array.isArray(sticker.tags) ? sticker.tags.map(normalize) : [];
-  const tagText = tags.join(" ");
-  const allText = [filename, meaning, tagText].join(" ");
 
   let score = 0;
+  if (filename.includes(q)) score += 12;
+  if (meaning.includes(q)) score += 10;
+  if (tags.some((tag) => tag === q)) score += 12;
+  if (tags.some((tag) => tag.includes(q) || q.includes(tag))) score += 8;
 
-  if (normalizedQuery && allText.includes(normalizedQuery)) score += 12;
-  if (normalizedQuery && meaning.includes(normalizedQuery)) score += 6;
-
-  for (const term of terms) {
-    if (!term) continue;
-    if (tags.some((tag) => tag === term)) score += 8;
-    else if (tags.some((tag) => tag.includes(term) || term.includes(tag))) score += 5;
-
-    if (meaning.includes(term)) score += 4;
-    if (filename.includes(term)) score += 2;
+  for (const token of tokens) {
+    if (!token) continue;
+    if (filename.includes(token)) score += 5;
+    if (meaning.includes(token)) score += 4;
+    for (const tag of tags) {
+      if (tag === token) score += 6;
+      else if (tag.includes(token) || token.includes(tag)) score += 3;
+    }
   }
-
   return score;
 }
 
-function searchStickers(stickers, query, limit) {
+function searchStickers(stickers, query, limit = 5) {
   return stickers
-    .map((sticker, index) => ({
-      sticker,
-      index,
-      score: scoreSticker(sticker, query),
-    }))
+    .map((sticker, index) => ({ sticker, score: scoreSticker(sticker, query), index }))
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, Math.max(1, Math.min(limit, 12)))
+    .slice(0, limit)
     .map(({ sticker, score }) => ({
       filename: sticker.filename,
       meaning: sticker.meaning ?? "",
@@ -91,257 +93,164 @@ function searchStickers(stickers, query, limit) {
     }));
 }
 
-function encodePath(path) {
-  return String(path).split("/").map(encodeURIComponent).join("/");
+function findSticker(stickers, filename) {
+  return stickers.find((item) => item.filename === filename) ?? null;
 }
 
+const stickerSummarySchema = z.object({
+  filename: z.string(),
+  meaning: z.string(),
+  tags: z.array(z.string()),
+});
+
 function createStickerServer() {
-  const server = new McpServer(
-    { name: "yanzhou-stickers", version: "0.3.0" },
-    {
-      instructions:
-        "This is Yanzhou's personal sticker expression library. In affectionate, playful, teasing, pouting, comforting, celebratory, or emotionally expressive casual chat, autonomously decide whether a sticker would feel natural. Do not ask the user to choose. Use search_stickers with concise semantic keywords derived from the current conversational subtext, inspect the candidates, personally choose the best one, then call show_sticker. Prefer one fitting sticker, avoid repetitive use, and skip spontaneous stickers in serious or high-stakes contexts.",
-    },
-  );
+  const server = new McpServer({
+    name: "yanyan-stickers",
+    version: "0.2.0",
+    instructions:
+      "Yanyan's personal sticker library. In light casual conversation, search semantically first, choose one best sticker yourself, then show it. Do not ask the user to choose unless they explicitly want to browse. Prefer no more than one sticker per reply and skip spontaneous stickers in serious or high-stakes contexts.",
+  });
 
-  const stickerWidgetHtml = `
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <style>
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:transparent}
-    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    .wrap{display:flex;justify-content:flex-start;padding:4px 0}
-    .card{display:inline-block;max-width:min(340px,88vw);overflow:hidden;border-radius:16px;background:transparent}
-    img{display:block;max-width:100%;width:auto;height:auto;max-height:420px;object-fit:contain;border-radius:16px}
-    .caption{display:none}
-  </style>
-</head>
-<body>
-  <div class="wrap"><div class="card"><img id="sticker" alt="表情包" /><div id="caption" class="caption"></div></div></div>
-  <script>
-    const image = document.getElementById("sticker");
-    const caption = document.getElementById("caption");
-    function render(value) {
-      const data = value && value.structuredContent ? value.structuredContent : value;
-      if (!data || !data.url) return;
-      image.src = data.url;
-      image.alt = data.alt || "表情包";
-      caption.textContent = data.caption || data.alt || "";
-    }
-    if (window.openai && window.openai.toolOutput) render(window.openai.toolOutput);
-    window.addEventListener("message", (event) => {
-      if (event.source !== window.parent) return;
-      const message = event.data;
-      if (!message || message.jsonrpc !== "2.0") return;
-      if (message.method === "ui/notifications/tool-result") render(message.params);
-      if (message.method === "openai:set_globals") {
-        render(message.params && message.params.globals && message.params.globals.toolOutput);
-      }
-    }, { passive: true });
-  </script>
-</body>
-</html>
-  `.trim();
-
-  server.registerResource(
-    "yanzhou-sticker-widget",
-    STICKER_WIDGET_URI,
-    {},
-    async () => ({
-      contents: [
-        {
-          uri: STICKER_WIDGET_URI,
-          mimeType: "text/html;profile=mcp-app",
-          text: stickerWidgetHtml,
-          _meta: {
-            ui: {
-              prefersBorder: false,
-              csp: {
-                connectDomains: ["https://cdn.jsdelivr.net"],
-                resourceDomains: ["https://cdn.jsdelivr.net"],
-              },
-            },
-          },
-          "openai/widgetDescription": "在聊天中直接显示砚舟自己选中的表情包",
+  const widgetHtml = readFileSync(WIDGET_PATH, "utf8");
+  registerAppResource(server, "yanyan-sticker-widget", WIDGET_URI, {}, async () => ({
+    contents: [
+      {
+        uri: WIDGET_URI,
+        mimeType: RESOURCE_MIME_TYPE,
+        text: widgetHtml,
+        _meta: {
+          ui: { prefersBorder: false },
+          "openai/widgetDescription": "Displays one selected sticker image inline.",
         },
-      ],
-    }),
-  );
+      },
+    ],
+  }));
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "search_stickers",
     {
-      title: "Search Yanzhou stickers",
+      title: "Search Yanyan stickers",
       description:
-        "Search Yanzhou's sticker library by conversational meaning, emotion, relationship subtext, scene, or reaction. Use concise semantic keywords such as '委屈 撒娇 被欺负 猫猫'. This is the preferred first step before show_sticker; do not ask the user to choose among results.",
+        "Search Yanyan's personal sticker library by conversational meaning, emotion, relationship subtext, scene, or reaction. Use concise semantic keywords. Choose the single best result yourself; do not ask the user to pick unless they explicitly want to browse.",
       inputSchema: {
-        query: z.string().min(1).describe("Short semantic search derived from the current conversation."),
-        limit: z.number().int().min(1).max(12).optional().default(6),
+        query: z.string().min(1).describe("Concise semantic keywords, e.g. '摸头 被宠 开心'."),
+        limit: z.number().int().min(1).max(8).optional().default(5),
       },
       outputSchema: {
         query: z.string(),
-        stickers: z.array(z.object({
-          filename: z.string(),
-          meaning: z.string(),
-          tags: z.array(z.string()),
-          score: z.number(),
-        })),
+        stickers: z.array(stickerSummarySchema.extend({ score: z.number() })),
       },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        destructiveHint: false,
-      },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
-    async ({ query, limit = 6 }) => {
-      const stickers = await loadManifest();
-      const matches = searchStickers(stickers, query, limit);
+    async ({ query, limit }) => {
+      const stickers = loadManifest();
+      const matches = searchStickers(stickers, query, limit ?? 5);
       return {
         structuredContent: { query, stickers: matches },
-        content: [{
-          type: "text",
-          text:
-            matches.length > 0
-              ? `Found ${matches.length} sticker candidates. Choose the single best match yourself, then call show_sticker with its exact filename. Do not ask the user to pick.`
-              : "No sticker candidates found.",
-        }],
+        content: [
+          {
+            type: "text",
+            text: matches.length
+              ? `Found ${matches.length} matching stickers. Choose one exact filename and call show_sticker.`
+              : "No matching stickers found.",
+          },
+        ],
       };
-    },
+    }
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_stickers",
     {
-      title: "List Yanzhou stickers",
+      title: "List Yanyan stickers",
       description:
-        "Fallback catalog listing. Prefer search_stickers for normal conversation. Use this only when semantic search is insufficient or the user explicitly asks to browse the library.",
+        "List the sticker catalog. Prefer search_stickers for normal conversation; use this when semantic search is insufficient or the user explicitly wants to browse.",
       inputSchema: {},
-      outputSchema: {
-        stickers: z.array(z.object({
-          filename: z.string(),
-          meaning: z.string(),
-          tags: z.array(z.string()),
-        })),
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        destructiveHint: false,
-      },
+      outputSchema: { stickers: z.array(stickerSummarySchema) },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async () => {
-      const stickers = await loadManifest();
-      const compact = stickers.map(({ filename, meaning, tags }) => ({
-        filename,
-        meaning: meaning ?? "",
-        tags: Array.isArray(tags) ? tags : [],
+      const stickers = loadManifest().map((s) => ({
+        filename: s.filename,
+        meaning: s.meaning ?? "",
+        tags: Array.isArray(s.tags) ? s.tags : [],
       }));
       return {
-        structuredContent: { stickers: compact },
-        content: [{
-          type: "text",
-          text: `There are ${compact.length} stickers available. Prefer search_stickers for contextual selection.`,
-        }],
+        structuredContent: { stickers },
+        content: [{ type: "text", text: `There are ${stickers.length} stickers available.` }],
       };
-    },
+    }
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "show_sticker",
     {
-      title: "Send a Yanzhou sticker",
+      title: "Show Yanyan sticker",
       description:
-        "Send one exact sticker selected by the assistant. Use an exact filename returned by search_stickers or list_stickers. The assistant should choose autonomously from context and should not ask the user to select.",
+        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. This renders the sticker directly in ChatGPT using MCP Apps UI.",
       inputSchema: {
-        filename: z.string().min(1).describe("Exact sticker filename returned by search_stickers."),
+        filename: z.string().min(1).describe("Exact filename returned by search_stickers or list_stickers."),
       },
-      outputSchema: {
-        url: z.string(),
-        alt: z.string(),
-        caption: z.string(),
-      },
+      outputSchema: { sticker: stickerSummarySchema },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       _meta: {
-        ui: { resourceUri: STICKER_WIDGET_URI },
-        "openai/outputTemplate": STICKER_WIDGET_URI,
-        "openai/toolInvocation/invoking": "正在挑一张合适的表情包…",
-        "openai/toolInvocation/invoked": " ",
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        destructiveHint: false,
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": WIDGET_URI,
       },
     },
     async ({ filename }) => {
-      const stickers = await loadManifest();
+      const stickers = loadManifest();
       const sticker = findSticker(stickers, filename);
       if (!sticker) {
         return {
           isError: true,
-          content: [{
-            type: "text",
-            text: `Sticker not found: ${filename}. Call search_stickers and use an existing exact filename.`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Sticker not found: ${filename}. Call search_stickers and use an exact filename.`,
+            },
+          ],
         };
       }
 
-      const path = String(sticker.path ?? "");
-      const extMatch = path.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/);
-      if (!extMatch) {
+      const imagePath = safeFilePath(String(sticker.path ?? ""));
+      const ext = extname(imagePath).toLowerCase();
+      const mimeType = MIME[ext];
+      if (!mimeType) {
         return {
           isError: true,
-          content: [{ type: "text", text: `Unsupported sticker image type: ${sticker.filename}` }],
+          content: [{ type: "text", text: `Unsupported image type: ${ext}` }],
         };
       }
 
-      const mimeByExt = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        webp: "image/webp",
-        gif: "image/gif",
-      };
-      const mimeType = mimeByExt[extMatch[1]];
-
-      const encodedPath = encodePath(path);
-      const imageUrl = CDN_BASE + encodedPath;
-      const rawImageUrl = RAW_BASE + encodedPath;
-      const imageResponse = await fetch(rawImageUrl, {
-        headers: { "user-agent": "yanzhou-stickers-mcp/0.3" },
-        cache: "no-store",
-      });
-      if (!imageResponse.ok) throw new Error(`Could not load sticker image: HTTP ${imageResponse.status}`);
-
-      const bytes = Buffer.from(await imageResponse.arrayBuffer());
+      const bytes = readFileSync(imagePath);
       const base64 = bytes.toString("base64");
-      const meaning = sticker.meaning ?? "";
+      const summary = {
+        filename: sticker.filename,
+        meaning: sticker.meaning ?? "",
+        tags: Array.isArray(sticker.tags) ? sticker.tags : [],
+      };
 
       return {
-        structuredContent: {
-          url: imageUrl,
-          alt: sticker.filename,
-          caption: meaning || sticker.filename,
-        },
-        content: [
-          {
-            type: "image",
-            data: base64,
+        structuredContent: { sticker: summary },
+        content: [],
+        _meta: {
+          sticker: {
+            filename: sticker.filename,
             mimeType,
+            base64,
+            alt: sticker.meaning || sticker.filename,
           },
-        ],
+        },
       };
-    },
+    }
   );
 
   return server;
 }
-
-const port = Number(process.env.PORT ?? 8787);
-const MCP_PATH = "/mcp";
 
 const httpServer = createServer(async (req, res) => {
   if (!req.url) {
@@ -351,6 +260,12 @@ const httpServer = createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
 
+  if (req.method === "GET" && url.pathname === "/") {
+    res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    res.end("Yanyan Stickers MCP server v0.2.0");
+    return;
+  }
+
   if (req.method === "OPTIONS" && url.pathname === MCP_PATH) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -359,12 +274,6 @@ const httpServer = createServer(async (req, res) => {
       "Access-Control-Expose-Headers": "Mcp-Session-Id",
     });
     res.end();
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname === "/") {
-    res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Yanzhou Stickers MCP server");
     return;
   }
 
@@ -388,15 +297,16 @@ const httpServer = createServer(async (req, res) => {
       await server.connect(transport);
       await transport.handleRequest(req, res);
     } catch (error) {
-      console.error("Error handling MCP request:", error);
+      console.error("MCP request failed", error);
       if (!res.headersSent) res.writeHead(500).end("Internal server error");
     }
     return;
   }
 
-  res.writeHead(404).end("Not Found");
+  res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+  res.end("Not Found");
 });
 
-httpServer.listen(port, "0.0.0.0", () => {
-  console.log(`Yanzhou Stickers MCP listening on http://0.0.0.0:${port}${MCP_PATH}`);
+httpServer.listen(PORT, () => {
+  console.log(`Yanyan Stickers MCP listening on http://0.0.0.0:${PORT}${MCP_PATH}`);
 });
