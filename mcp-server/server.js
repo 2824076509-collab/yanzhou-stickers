@@ -147,6 +147,7 @@ function createStickerServer() {
         query: z.string(),
         matches: z.array(stickerSchema.extend({ score: z.number() })),
       },
+      _meta: {},
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async ({ query, limit }) => {
