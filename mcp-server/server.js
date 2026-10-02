@@ -2,11 +2,7 @@ import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { resolve, dirname, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  registerAppResource,
-  registerAppTool,
-  RESOURCE_MIME_TYPE,
-} from "@modelcontextprotocol/ext-apps/server";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -14,9 +10,7 @@ import { z } from "zod";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 const MANIFEST_PATH = process.env.STICKER_MANIFEST_PATH || resolve(REPO_ROOT, "stickers.json");
-const WIDGET_PATH = resolve(__dirname, "public", "sticker-widget.html");
 const MCP_PATH = "/mcp";
-const WIDGET_URI = "ui://widget/yanyan-sticker-v3.html";
 const PORT = Number(process.env.PORT ?? 8787);
 
 const MIME = {
@@ -106,25 +100,10 @@ const stickerSummarySchema = z.object({
 function createStickerServer() {
   const server = new McpServer({
     name: "yanyan-stickers",
-    version: "0.2.2",
+    version: "0.2.3",
     instructions:
       "Yanyan's personal sticker library. In light casual conversation, search semantically first, choose one best sticker yourself, then show it. Do not ask the user to choose unless they explicitly want to browse. Prefer no more than one sticker per reply and skip spontaneous stickers in serious or high-stakes contexts.",
   });
-
-  const widgetHtml = readFileSync(WIDGET_PATH, "utf8");
-  registerAppResource(server, "yanyan-sticker-widget", WIDGET_URI, {}, async () => ({
-    contents: [
-      {
-        uri: WIDGET_URI,
-        mimeType: RESOURCE_MIME_TYPE,
-        text: widgetHtml,
-        _meta: {
-          ui: { prefersBorder: false },
-          "openai/widgetDescription": "Displays one selected sticker image inline.",
-        },
-      },
-    ],
-  }));
 
   registerAppTool(
     server,
@@ -192,16 +171,12 @@ function createStickerServer() {
     {
       title: "Show Yanyan sticker",
       description:
-        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. Returns the real image as native MCP image content, with MCP Apps UI as an optional richer renderer.",
+        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. Returns only the real image as native MCP image content.",
       inputSchema: {
         filename: z.string().min(1).describe("Exact filename returned by search_stickers or list_stickers."),
       },
       outputSchema: { sticker: stickerSummarySchema },
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-      _meta: {
-        ui: { resourceUri: WIDGET_URI },
-        "openai/outputTemplate": WIDGET_URI,
-      },
     },
     async ({ filename }) => {
       const stickers = loadManifest();
@@ -245,14 +220,6 @@ function createStickerServer() {
             mimeType,
           },
         ],
-        _meta: {
-          sticker: {
-            filename: sticker.filename,
-            mimeType,
-            base64,
-            alt: sticker.meaning || sticker.filename,
-          },
-        },
       };
     }
   );
@@ -270,7 +237,7 @@ const httpServer = createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/") {
     res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Yanyan Stickers MCP server v0.2.2");
+    res.end("Yanyan Stickers MCP server v0.2.3");
     return;
   }
 
