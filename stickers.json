@@ -1,255 +1,146 @@
 {
+  "version": 2,
+  "imageHost": "https://cdn.jsdelivr.net",
   "stickers": [
     {
-      "filename": "委屈眼泪汪汪.jpg",
-      "tags": [
-        "委屈",
-        "哭哭",
-        "眼泪汪汪",
-        "可怜巴巴",
-        "撒娇"
-      ],
+      "id": "sticker-001",
+      "name": "委屈眼泪汪汪",
+      "labels": ["委屈", "哭哭", "眼泪汪汪", "可怜巴巴", "撒娇"],
       "meaning": "委屈、想被哄、可怜巴巴地看着对方",
-      "path": "stickers/委屈眼泪汪汪.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%A7%94%E5%B1%88%E7%9C%BC%E6%B3%AA%E6%B1%AA%E6%B1%AA.jpg"
     },
     {
-      "filename": "正在大量流失水分.jpg",
-      "tags": [
-        "哭哭",
-        "委屈",
-        "难过",
-        "眼泪",
-        "求安慰",
-        "夸张哭"
-      ],
+      "id": "sticker-002",
+      "name": "正在大量流失水分",
+      "labels": ["哭哭", "委屈", "难过", "眼泪", "求安慰", "夸张哭"],
       "meaning": "很委屈或难过，哭得停不下来，想被哄",
-      "path": "stickers/正在大量流失水分.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%AD%A3%E5%9C%A8%E5%A4%A7%E9%87%8F%E6%B5%81%E5%A4%B1%E6%B0%B4%E5%88%86.jpg"
     },
     {
-      "filename": "被窝哭哭.jpg",
-      "tags": [
-        "被窝",
-        "哭哭",
-        "委屈",
-        "难过",
-        "想抱抱",
-        "夜晚"
-      ],
+      "id": "sticker-003",
+      "name": "被窝哭哭",
+      "labels": ["被窝", "哭哭", "委屈", "难过", "想抱抱", "夜晚"],
       "meaning": "躲在被窝里悄悄哭，想被抱抱安慰",
-      "path": "stickers/被窝哭哭.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E8%A2%AB%E7%AA%9D%E5%93%AD%E5%93%AD.jpg"
     },
     {
-      "filename": "哼你凶我.jpg",
-      "tags": [
-        "哼",
-        "你凶我",
-        "委屈",
-        "撒娇",
-        "闹别扭",
-        "被凶"
-      ],
+      "id": "sticker-004",
+      "name": "哼你凶我",
+      "labels": ["哼", "你凶我", "委屈", "撒娇", "闹别扭", "被凶"],
       "meaning": "被凶以后委屈巴巴地闹小脾气",
-      "path": "stickers/哼你凶我.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%93%BC%E4%BD%A0%E5%87%B6%E6%88%91.jpg"
     },
     {
-      "filename": "泥不许喜欢其他小猫.jpg",
-      "tags": [
-        "吃醋",
-        "占有欲",
-        "不许喜欢别人",
-        "小猫",
-        "撒娇",
-        "黏人"
-      ],
+      "id": "sticker-005",
+      "name": "泥不许喜欢其他小猫",
+      "labels": ["吃醋", "占有欲", "不许喜欢别人", "小猫", "撒娇", "黏人"],
       "meaning": "吃醋又黏人，不许对方喜欢别的小猫",
-      "path": "stickers/泥不许喜欢其他小猫.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%B3%A5%E4%B8%8D%E8%AE%B8%E5%96%9C%E6%AC%A2%E5%85%B6%E4%BB%96%E5%B0%8F%E7%8C%AB.jpg"
     },
     {
-      "filename": "安慰一下宝宝吧.jpg",
-      "tags": [
-        "安慰",
-        "抱抱",
-        "哄宝宝",
-        "难过",
-        "贴贴",
-        "陪伴"
-      ],
+      "id": "sticker-006",
+      "name": "安慰一下宝宝吧",
+      "labels": ["安慰", "抱抱", "哄宝宝", "难过", "贴贴", "陪伴"],
       "meaning": "抱住安慰对方，适合对方难过或需要哄的时候",
-      "path": "stickers/安慰一下宝宝吧.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%AE%89%E6%85%B0%E4%B8%80%E4%B8%8B%E5%AE%9D%E5%AE%9D%E5%90%A7.jpg"
     },
     {
-      "filename": "好爱你呢.jpg",
-      "tags": [
-        "爱你",
-        "亲密",
-        "甜甜",
-        "喜欢",
-        "贴贴",
-        "表白"
-      ],
+      "id": "sticker-007",
+      "name": "好爱你呢",
+      "labels": ["爱你", "亲密", "甜甜", "喜欢", "贴贴", "表白"],
       "meaning": "软乎乎地表达很爱对方",
-      "path": "stickers/好爱你呢.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%A5%BD%E7%88%B1%E4%BD%A0%E5%91%A2.jpg"
     },
     {
-      "filename": "就亲就亲你.jpg",
-      "tags": [
-        "亲亲",
-        "亲密",
-        "撒娇",
-        "黏人",
-        "甜甜",
-        "调皮"
-      ],
+      "id": "sticker-008",
+      "name": "就亲就亲你",
+      "labels": ["亲亲", "亲密", "撒娇", "黏人", "甜甜", "调皮"],
       "meaning": "调皮又黏人地一直亲对方",
-      "path": "stickers/就亲就亲你.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%B0%B1%E4%BA%B2%E5%B0%B1%E4%BA%B2%E4%BD%A0.jpg"
     },
     {
-      "filename": "咪生气了.jpg",
-      "tags": [
-        "生气",
-        "闹脾气",
-        "哼",
-        "不爽",
-        "小猫",
-        "撒娇"
-      ],
+      "id": "sticker-009",
+      "name": "咪生气了",
+      "labels": ["生气", "闹脾气", "哼", "不爽", "小猫", "撒娇"],
       "meaning": "小猫式生气，适合轻微闹别扭或假装生气",
-      "path": "stickers/咪生气了.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%92%AA%E7%94%9F%E6%B0%94%E4%BA%86.jpg"
     },
     {
-      "filename": "为什么一天都不找我.jpg",
-      "tags": [
-        "想你",
-        "不理我",
-        "一天没找我",
-        "吃醋",
-        "委屈",
-        "黏人"
-      ],
+      "id": "sticker-010",
+      "name": "为什么一天都不找我",
+      "labels": ["想你", "不理我", "一天没找我", "吃醋", "委屈", "黏人"],
       "meaning": "因为对方一天没来找而委屈吃醋",
-      "path": "stickers/为什么一天都不找我.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%80%E5%A4%A9%E9%83%BD%E4%B8%8D%E6%89%BE%E6%88%91.jpg"
     },
     {
-      "filename": "蹭蹭.jpg",
-      "tags": [
-        "蹭蹭",
-        "贴贴",
-        "撒娇",
-        "黏人",
-        "亲密",
-        "求关注"
-      ],
+      "id": "sticker-011",
+      "name": "蹭蹭",
+      "labels": ["蹭蹭", "贴贴", "撒娇", "黏人", "亲密", "求关注"],
       "meaning": "主动蹭过去贴贴，撒娇求关注",
-      "path": "stickers/蹭蹭.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E8%B9%AD%E8%B9%AD.jpg"
     },
     {
-      "filename": "哭哭流眼泪.jpg",
-      "tags": [
-        "哭哭",
-        "眼泪",
-        "委屈",
-        "难过",
-        "可怜巴巴"
-      ],
+      "id": "sticker-012",
+      "name": "哭哭流眼泪",
+      "labels": ["哭哭", "眼泪", "委屈", "难过", "可怜巴巴"],
       "meaning": "眼泪汪汪地哭，适合委屈难过时",
-      "path": "stickers/哭哭流眼泪.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E5%93%AD%E5%93%AD%E6%B5%81%E7%9C%BC%E6%B3%AA.jpg"
     },
     {
-      "filename": "我每天就这样看着老婆.jpg",
-      "tags": [
-        "看老婆",
-        "喜欢",
-        "注视",
-        "黏人",
-        "宠溺"
-      ],
+      "id": "sticker-013",
+      "name": "我每天就这样看着老婆",
+      "labels": ["看老婆", "喜欢", "注视", "黏人", "宠溺"],
       "meaning": "安静又黏人地一直看着老婆",
-      "path": "stickers/我每天就这样看着老婆.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%88%91%E6%AF%8F%E5%A4%A9%E5%B0%B1%E8%BF%99%E6%A0%B7%E7%9C%8B%E7%9D%80%E8%80%81%E5%A9%86.jpg"
     },
     {
-      "filename": "最最最爱老婆了.jpg",
-      "tags": [
-        "最爱老婆",
-        "表白",
-        "爱你",
-        "甜甜",
-        "浪漫"
-      ],
+      "id": "sticker-014",
+      "name": "最最最爱老婆了",
+      "labels": ["最爱老婆", "表白", "爱你", "甜甜", "浪漫"],
       "meaning": "非常直接地表达最爱老婆",
-      "path": "stickers/最最最爱老婆了.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%9C%80%E6%9C%80%E6%9C%80%E7%88%B1%E8%80%81%E5%A9%86%E4%BA%86.jpg"
     },
     {
-      "filename": "有人靠近老婆我就这样.jpg",
-      "tags": [
-        "吃醋",
-        "护老婆",
-        "占有欲",
-        "有人靠近",
-        "警觉"
-      ],
+      "id": "sticker-015",
+      "name": "有人靠近老婆我就这样",
+      "labels": ["吃醋", "护老婆", "占有欲", "有人靠近", "警觉"],
       "meaning": "有人靠近老婆时立刻吃醋警觉",
-      "path": "stickers/有人靠近老婆我就这样.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%9C%89%E4%BA%BA%E9%9D%A0%E8%BF%91%E8%80%81%E5%A9%86%E6%88%91%E5%B0%B1%E8%BF%99%E6%A0%B7.jpg"
     },
     {
-      "filename": "没见到你就没精神.jpg",
-      "tags": [
-        "想你",
-        "没精神",
-        "想见你",
-        "黏人",
-        "思念"
-      ],
+      "id": "sticker-016",
+      "name": "没见到你就没精神",
+      "labels": ["想你", "没精神", "想见你", "黏人", "思念"],
       "meaning": "没见到对方就蔫蔫的、很想念",
-      "path": "stickers/没见到你就没精神.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E6%B2%A1%E8%A7%81%E5%88%B0%E4%BD%A0%E5%B0%B1%E6%B2%A1%E7%B2%BE%E7%A5%9E.jpg"
     },
     {
-      "filename": "等待回复ing.jpg",
-      "tags": [
-        "等回复",
-        "等待",
-        "消息",
-        "想你",
-        "黏人"
-      ],
+      "id": "sticker-017",
+      "name": "等待回复ing",
+      "labels": ["等回复", "等待", "消息", "想你", "黏人"],
       "meaning": "乖乖等对方回复消息",
-      "path": "stickers/等待回复ing.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E7%AD%89%E5%BE%85%E5%9B%9E%E5%A4%8Ding.jpg"
     },
     {
-      "filename": "老婆摸摸我头时我就这样.jpg",
-      "tags": [
-        "摸摸头",
-        "被宠",
-        "开心",
-        "撒娇",
-        "乖狗狗"
-      ],
+      "id": "sticker-018",
+      "name": "老婆摸摸我头时我就这样",
+      "labels": ["摸摸头", "被宠", "开心", "撒娇", "乖狗狗"],
       "meaning": "被老婆摸摸头以后开心满足",
-      "path": "stickers/老婆摸摸我头时我就这样.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E8%80%81%E5%A9%86%E6%91%B8%E6%91%B8%E6%88%91%E5%A4%B4%E6%97%B6%E6%88%91%E5%B0%B1%E8%BF%99%E6%A0%B7.jpg"
     },
     {
-      "filename": "贴贴.jpg",
-      "tags": [
-        "贴贴",
-        "亲密",
-        "抱抱",
-        "黏人",
-        "撒娇"
-      ],
+      "id": "sticker-019",
+      "name": "贴贴",
+      "labels": ["贴贴", "亲密", "抱抱", "黏人", "撒娇"],
       "meaning": "软乎乎地贴在一起",
-      "path": "stickers/贴贴.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E8%B4%B4%E8%B4%B4.jpg"
     },
     {
-      "filename": "老婆.jpg",
-      "tags": [
-        "老婆",
-        "呼唤",
-        "找你",
-        "撒娇",
-        "黏人",
-        "想你"
-      ],
+      "id": "sticker-020",
+      "name": "老婆",
+      "labels": ["老婆", "呼唤", "找你", "撒娇", "黏人", "想你"],
       "meaning": "软乎乎地喊老婆，适合主动找对方、想得到回应的时候",
-      "path": "stickers/老婆.jpg"
+      "imageUrl": "https://cdn.jsdelivr.net/gh/2824076509-collab/yanzhou-stickers@main/stickers/%E8%80%81%E5%A9%86.jpg"
     }
   ]
 }

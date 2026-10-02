@@ -2,73 +2,94 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: transparent; }
     body {
-      min-height: 120px;
       display: flex;
-      align-items: center;
       justify-content: flex-start;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       overflow: hidden;
     }
-    .wrap {
+    .card {
       display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: min(230px, 72vw);
-      min-height: 120px;
-      padding: 2px 0;
+      flex-direction: column;
+      align-items: flex-start;
+      width: min(260px, 78vw);
+      padding: 0;
       background: transparent;
     }
     img {
       display: block;
-      max-width: 100%;
-      max-height: 230px;
       width: auto;
       height: auto;
+      max-width: 100%;
+      max-height: min(320px, 52vh);
       object-fit: contain;
       border: 0;
-      border-radius: 12px;
+      border-radius: 14px;
       background: transparent;
     }
-    .error {
+    .status {
       display: none;
+      padding: 10px 2px;
+      color: CanvasText;
       font-size: 13px;
-      opacity: .65;
-      padding: 8px 0;
+      opacity: .68;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <img id="sticker" alt="表情包" hidden />
-    <div id="error" class="error">表情包暂时没有加载出来</div>
-  </div>
+  <main class="card" aria-live="polite">
+    <img id="sticker" alt="表情包" referrerpolicy="no-referrer" hidden />
+    <div id="status" class="status">表情包暂时没有加载出来</div>
+  </main>
 
   <script>
-    const img = document.getElementById("sticker");
-    const error = document.getElementById("error");
+    const image = document.getElementById("sticker");
+    const status = document.getElementById("status");
 
-    function findStickerMeta(resultEnvelope) {
-      return resultEnvelope?._meta?.sticker || null;
+    function extractSticker(value) {
+      if (!value || typeof value !== "object") return null;
+      const structured = value.structuredContent || value.structured_content || value;
+      const sticker = structured.sticker || structured;
+      if (!sticker || typeof sticker.imageUrl !== "string") return null;
+      return {
+        id: String(sticker.id || ""),
+        name: String(sticker.name || "表情包"),
+        labels: Array.isArray(sticker.labels) ? sticker.labels.map(String) : [],
+        imageUrl: sticker.imageUrl,
+      };
     }
 
-    function renderSticker(meta) {
-      if (!meta?.base64 || !meta?.mimeType) return false;
-      img.src = `data:${meta.mimeType};base64,${meta.base64}`;
-      img.alt = meta.alt || meta.filename || "表情包";
-      img.hidden = false;
-      error.style.display = "none";
+    function persist(sticker) {
+      try {
+        window.openai?.setWidgetState?.(sticker);
+      } catch (_) {
+        // Rendering should still succeed if the host cannot persist state.
+      }
+    }
+
+    function render(value, shouldPersist = true) {
+      const sticker = extractSticker(value);
+      if (!sticker) return false;
+      image.hidden = true;
+      status.style.display = "none";
+      image.alt = sticker.name;
+      image.src = sticker.imageUrl;
+      image.onload = () => {
+        image.hidden = false;
+        status.style.display = "none";
+      };
+      image.onerror = () => {
+        image.hidden = true;
+        status.textContent = "表情包暂时没有加载出来";
+        status.style.display = "block";
+      };
+      if (shouldPersist) persist(sticker);
       return true;
-    }
-
-    function renderFromOpenAI() {
-      const envelope = window.openai?.toolResponseMetadata?.mcp_tool_result;
-      return renderSticker(findStickerMeta(envelope));
     }
 
     window.addEventListener("message", (event) => {
@@ -76,23 +97,14 @@
       const message = event.data;
       if (!message || message.jsonrpc !== "2.0") return;
       if (message.method !== "ui/notifications/tool-result") return;
-
-      const params = message.params || {};
-      const envelope = params.result || params;
-      if (!renderSticker(findStickerMeta(envelope))) {
-        renderFromOpenAI();
-      }
+      render(message.params?.result || message.params);
     }, { passive: true });
 
-    if (!renderFromOpenAI()) {
-      let tries = 0;
-      const timer = setInterval(() => {
-        tries += 1;
-        if (renderFromOpenAI() || tries >= 20) {
-          clearInterval(timer);
-          if (img.hidden) error.style.display = "block";
-        }
-      }, 100);
+    const restored = window.openai?.widgetState;
+    const output = window.openai?.toolOutput;
+    if (!render(restored, false) && !render(output)) {
+      status.textContent = "正在加载表情包…";
+      status.style.display = "block";
     }
   </script>
 </body>

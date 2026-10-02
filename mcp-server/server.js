@@ -1,8 +1,12 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
-import { resolve, dirname, extname, sep } from "node:path";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import {
+  registerAppResource,
+  registerAppTool,
+  RESOURCE_MIME_TYPE,
+} from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -10,16 +14,11 @@ import { z } from "zod";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 const MANIFEST_PATH = process.env.STICKER_MANIFEST_PATH || resolve(REPO_ROOT, "stickers.json");
+const WIDGET_PATH = resolve(__dirname, "public", "sticker-widget.html");
+const WIDGET_URI = "ui://widget/yanyan-sticker-v4.html";
 const MCP_PATH = "/mcp";
 const PORT = Number(process.env.PORT ?? 8787);
-
-const MIME = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-};
+const CDN_ORIGIN = "https://cdn.jsdelivr.net";
 
 function normalize(value = "") {
   return String(value)
@@ -37,40 +36,40 @@ function loadManifest() {
   return data.stickers;
 }
 
-function safeFilePath(relativePath) {
-  const full = resolve(REPO_ROOT, relativePath);
-  const rootPrefix = REPO_ROOT.endsWith(sep) ? REPO_ROOT : REPO_ROOT + sep;
-  if (!(full === REPO_ROOT || full.startsWith(rootPrefix))) {
-    throw new Error("Sticker path escapes repository root");
-  }
-  return full;
-}
-
 function scoreSticker(sticker, query) {
   const qRaw = String(query ?? "").trim();
   if (!qRaw) return 0;
   const q = normalize(qRaw);
   const tokens = qRaw.split(/[\s,，、/|]+/).map(normalize).filter(Boolean);
-  const filename = normalize(sticker.filename);
+  const name = normalize(sticker.name);
   const meaning = normalize(sticker.meaning);
-  const tags = Array.isArray(sticker.tags) ? sticker.tags.map(normalize) : [];
+  const labels = Array.isArray(sticker.labels) ? sticker.labels.map(normalize) : [];
 
   let score = 0;
-  if (filename.includes(q)) score += 12;
+  if (name.includes(q)) score += 12;
   if (meaning.includes(q)) score += 10;
-  if (tags.some((tag) => tag === q)) score += 12;
-  if (tags.some((tag) => tag.includes(q) || q.includes(tag))) score += 8;
+  if (labels.some((label) => label === q)) score += 12;
+  if (labels.some((label) => label.includes(q) || q.includes(label))) score += 8;
 
   for (const token of tokens) {
-    if (!token) continue;
-    if (filename.includes(token)) score += 5;
+    if (name.includes(token)) score += 5;
     if (meaning.includes(token)) score += 4;
-    for (const tag of tags) {
-      if (tag === token) score += 6;
-      else if (tag.includes(token) || token.includes(tag)) score += 3;
+    for (const label of labels) {
+      if (label === token) score += 6;
+      else if (label.includes(token) || token.includes(label)) score += 3;
     }
   }
   return score;
+}
+
+function toPublicSticker(sticker) {
+  return {
+    id: sticker.id,
+    name: sticker.name,
+    labels: Array.isArray(sticker.labels) ? sticker.labels : [],
+    meaning: sticker.meaning ?? "",
+    imageUrl: sticker.imageUrl,
+  };
 }
 
 function searchStickers(stickers, query, limit = 5) {
@@ -79,61 +78,87 @@ function searchStickers(stickers, query, limit = 5) {
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, limit)
-    .map(({ sticker, score }) => ({
-      filename: sticker.filename,
-      meaning: sticker.meaning ?? "",
-      tags: Array.isArray(sticker.tags) ? sticker.tags : [],
-      score,
-    }));
+    .map(({ sticker, score }) => ({ ...toPublicSticker(sticker), score }));
 }
 
-function findSticker(stickers, filename) {
-  return stickers.find((item) => item.filename === filename) ?? null;
-}
-
-const stickerSummarySchema = z.object({
-  filename: z.string(),
+const stickerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  labels: z.array(z.string()),
   meaning: z.string(),
-  tags: z.array(z.string()),
+  imageUrl: z.string().url(),
 });
 
 function createStickerServer() {
   const server = new McpServer({
     name: "yanyan-stickers",
-    version: "0.2.3",
+    version: "0.4.0",
     instructions:
-      "Yanyan's personal sticker library. In light casual conversation, search semantically first, choose one best sticker yourself, then show it. Do not ask the user to choose unless they explicitly want to browse. Prefer no more than one sticker per reply and skip spontaneous stickers in serious or high-stakes contexts.",
+      "Yanyan's personal sticker library. In light casual conversation, call sticker_search with semantic keywords, choose the best match yourself, then call sticker_pick with its exact id. Do not ask the user to choose unless they explicitly want to browse. Prefer one sticker per eligible reply and skip spontaneous stickers in serious or high-stakes contexts.",
   });
+
+  registerAppResource(
+    server,
+    "yanyan-sticker-card-v4",
+    WIDGET_URI,
+    {
+      title: "言言的表情包",
+      description: "在 ChatGPT 中直接显示一张表情包图片。",
+      mimeType: RESOURCE_MIME_TYPE,
+    },
+    async () => ({
+      contents: [
+        {
+          uri: WIDGET_URI,
+          mimeType: RESOURCE_MIME_TYPE,
+          text: readFileSync(WIDGET_PATH, "utf8"),
+          _meta: {
+            ui: {
+              prefersBorder: false,
+              csp: {
+                connectDomains: [],
+                resourceDomains: [CDN_ORIGIN],
+              },
+            },
+            "openai/widgetDescription": "显示从言言的表情包库中挑选出的图片。",
+            "openai/widgetPrefersBorder": false,
+            "openai/widgetCSP": {
+              connect_domains: [],
+              resource_domains: [CDN_ORIGIN],
+            },
+          },
+        },
+      ],
+    })
+  );
 
   registerAppTool(
     server,
-    "search_stickers",
+    "sticker_search",
     {
-      title: "Search Yanyan stickers",
+      title: "搜索言言的表情包",
       description:
-        "Search Yanyan's personal sticker library by conversational meaning, emotion, relationship subtext, scene, or reaction. Use concise semantic keywords. Choose the single best result yourself; do not ask the user to pick unless they explicitly want to browse.",
+        "按当前聊天的语境、情绪、动作或关系潜台词搜索表情包。先搜索，再自行挑选一个最合适的结果调用 sticker_pick。",
       inputSchema: {
-        query: z.string().min(1).describe("Concise semantic keywords, e.g. '摸头 被宠 开心'."),
+        query: z.string().min(1).describe("2 到 5 个简短语义词，例如：贴贴 撒娇 亲密。"),
         limit: z.number().int().min(1).max(8).optional().default(5),
       },
       outputSchema: {
         query: z.string(),
-        stickers: z.array(stickerSummarySchema.extend({ score: z.number() })),
+        matches: z.array(stickerSchema.extend({ score: z.number() })),
       },
-      _meta: {},
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async ({ query, limit }) => {
-      const stickers = loadManifest();
-      const matches = searchStickers(stickers, query, limit ?? 5);
+      const matches = searchStickers(loadManifest(), query, limit ?? 5);
       return {
-        structuredContent: { query, stickers: matches },
+        structuredContent: { query, matches },
         content: [
           {
             type: "text",
             text: matches.length
-              ? `Found ${matches.length} matching stickers. Choose one exact filename and call show_sticker.`
-              : "No matching stickers found.",
+              ? `找到 ${matches.length} 张候选表情包。请自行选择最合适的一张，并用它的 id 调用 sticker_pick。`
+              : "没有找到合适的表情包。",
           },
         ],
       };
@@ -142,84 +167,34 @@ function createStickerServer() {
 
   registerAppTool(
     server,
-    "list_stickers",
+    "sticker_pick",
     {
-      title: "List Yanyan stickers",
+      title: "发送言言的表情包",
       description:
-        "List the sticker catalog. Prefer search_stickers for normal conversation; use this when semantic search is insufficient or the user explicitly wants to browse.",
-      inputSchema: {},
-      outputSchema: { stickers: z.array(stickerSummarySchema) },
-      _meta: {},
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    },
-    async () => {
-      const stickers = loadManifest().map((s) => ({
-        filename: s.filename,
-        meaning: s.meaning ?? "",
-        tags: Array.isArray(s.tags) ? s.tags : [],
-      }));
-      return {
-        structuredContent: { stickers },
-        content: [{ type: "text", text: `There are ${stickers.length} stickers available.` }],
-      };
-    }
-  );
-
-  registerAppTool(
-    server,
-    "show_sticker",
-    {
-      title: "Show Yanyan sticker",
-      description:
-        "Display one exact sticker chosen from search_stickers or list_stickers. Use the exact filename returned by those tools. Returns only the real image as native MCP image content.",
+        "用 sticker_search 返回的准确 id 选择并显示一张表情包。图片 URL 会随 structuredContent 一次返回，UI 不会再次调用工具。",
       inputSchema: {
-        filename: z.string().min(1).describe("Exact filename returned by search_stickers or list_stickers."),
+        id: z.string().min(1).describe("sticker_search 返回的准确表情包 id。"),
       },
-      outputSchema: { sticker: stickerSummarySchema },
+      outputSchema: stickerSchema,
+      _meta: {
+        ui: { resourceUri: WIDGET_URI },
+        "openai/outputTemplate": WIDGET_URI,
+      },
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
-    async ({ filename }) => {
-      const stickers = loadManifest();
-      const sticker = findSticker(stickers, filename);
+    async ({ id }) => {
+      const sticker = loadManifest().find((item) => item.id === id);
       if (!sticker) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Sticker not found: ${filename}. Call search_stickers and use an exact filename.`,
-            },
-          ],
+          content: [{ type: "text", text: `没有找到表情包：${id}。请重新调用 sticker_search。` }],
         };
       }
 
-      const imagePath = safeFilePath(String(sticker.path ?? ""));
-      const ext = extname(imagePath).toLowerCase();
-      const mimeType = MIME[ext];
-      if (!mimeType) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `Unsupported image type: ${ext}` }],
-        };
-      }
-
-      const bytes = readFileSync(imagePath);
-      const base64 = bytes.toString("base64");
-      const summary = {
-        filename: sticker.filename,
-        meaning: sticker.meaning ?? "",
-        tags: Array.isArray(sticker.tags) ? sticker.tags : [],
-      };
-
+      const picked = toPublicSticker(sticker);
       return {
-        structuredContent: { sticker: summary },
-        content: [
-          {
-            type: "image",
-            data: base64,
-            mimeType,
-          },
-        ],
+        structuredContent: picked,
+        content: [{ type: "text", text: `已选择表情包：${picked.name}` }],
       };
     }
   );
@@ -237,7 +212,7 @@ const httpServer = createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/") {
     res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Yanyan Stickers MCP server v0.2.3");
+    res.end("Yanyan Stickers MCP server v0.4.0");
     return;
   }
 
@@ -252,8 +227,8 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
-  const MCP_METHODS = new Set(["POST", "GET", "DELETE"]);
-  if (url.pathname === MCP_PATH && req.method && MCP_METHODS.has(req.method)) {
+  const mcpMethods = new Set(["POST", "GET", "DELETE"]);
+  if (url.pathname === MCP_PATH && req.method && mcpMethods.has(req.method)) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
